@@ -6,6 +6,12 @@ import Category from "./models/Category.js";
 import Product from "./models/Product.js";
 import User from "./models/User.js";
 import Order from "./models/Order.js";
+import Settings from "./models/Settings.js";
+import Country from "./models/Country.js";
+import Coupon from "./models/Coupon.js";
+import Review from "./models/Review.js";
+import AnnouncementBar from "./models/AnnouncementBar.js";
+import { recalcProductRating } from "./controllers/reviewController.js";
 import { slugify } from "./utils/slugify.js";
 
 // ---- Categories (mirrors the original frontend catalog) ----
@@ -61,9 +67,13 @@ const run = async () => {
   const catByName = new Map(catDocs.map((c) => [c.name, c._id]));
 
   console.log("Seeding products...");
-  await Product.insertMany(
+  // Ratings/review counts are derived from real Review documents below, not
+  // from static seed values.
+  const productDocs = await Product.insertMany(
     products.map((p) => ({
       ...p,
+      rating: 0,
+      reviews: 0,
       category: catByName.get(p.category),
       slug: slugify(p.name),
       image: p.images?.[0] || "",
@@ -77,10 +87,131 @@ const run = async () => {
     await User.create({ ...u, password: hashed });
   }
 
+  console.log("Seeding reviewers and reviews...");
+  await Review.deleteMany({});
+  const reviewerData = [
+    { name: "Jordan Ellis", email: "jordan@example.com" },
+    { name: "Priya Nair", email: "priya@example.com" },
+    { name: "Marcus Lee", email: "marcus@example.com" },
+    { name: "Sofia Alvarez", email: "sofia@example.com" },
+  ];
+  await User.deleteMany({ email: { $in: reviewerData.map((r) => r.email) } });
+  const reviewers = [];
+  for (const r of reviewerData) {
+    const hashed = await bcrypt.hash("password123", 10);
+    reviewers.push(await User.create({ ...r, password: hashed, role: "user" }));
+  }
+
+  const comments = [
+    "Excellent quality and fits perfectly. Highly recommend!",
+    "Great value for the price. Would buy again.",
+    "Comfortable and well made, though delivery took a few days.",
+    "Exactly as described. Very happy with this purchase.",
+    "Solid product but sizing runs a little small.",
+    "Love it — became my go-to right away.",
+  ];
+  let reviewCount = 0;
+  for (const product of productDocs) {
+    // 2-4 distinct reviewers per product.
+    const howMany = 2 + Math.floor(Math.random() * 3);
+    const chosen = [...reviewers].sort(() => Math.random() - 0.5).slice(0, howMany);
+    for (const reviewer of chosen) {
+      await Review.create({
+        product: product._id,
+        user: reviewer._id,
+        name: reviewer.name,
+        rating: 3 + Math.floor(Math.random() * 3), // 3-5 stars
+        comment: comments[Math.floor(Math.random() * comments.length)],
+      });
+      reviewCount += 1;
+    }
+    await recalcProductRating(product._id);
+  }
+
+  console.log("Seeding store settings...");
+  await Settings.deleteMany({});
+  await Settings.create({
+    key: "store",
+    storeName: "Buyly",
+    currency: "USD",
+    freeShippingThreshold: 75,
+    shippingFlatRate: 6.99,
+    taxRatePercent: 8,
+    paymentMethods: [
+      { key: "card", label: "Credit Card", enabled: true },
+      { key: "paypal", label: "PayPal", enabled: true },
+      { key: "cod", label: "Cash on Delivery", enabled: true },
+    ],
+  });
+
+  console.log("Seeding countries...");
+  await Country.deleteMany({});
+  await Country.insertMany([
+    { name: "United States", code: "US", enabled: true, order: 1 },
+    { name: "Canada", code: "CA", enabled: true, order: 2 },
+    { name: "United Kingdom", code: "GB", enabled: true, order: 3 },
+    { name: "Australia", code: "AU", enabled: true, order: 4 },
+    { name: "Germany", code: "DE", enabled: true, order: 5 },
+  ]);
+
+  console.log("Seeding coupons...");
+  await Coupon.deleteMany({});
+  await Coupon.insertMany([
+    { code: "WELCOME10", type: "percent", value: 10, active: true, minSubtotal: 0 },
+    { code: "SAVE20", type: "fixed", value: 20, active: true, minSubtotal: 100 },
+  ]);
+
+  console.log("Seeding announcement bars...");
+  await AnnouncementBar.deleteMany({});
+  await AnnouncementBar.insertMany([
+    {
+      message: "Free shipping on orders over $75",
+      icon: "🚚",
+      backgroundType: "solid",
+      backgroundColor: "#111111",
+      textColor: "#ffffff",
+      accentColor: "#facc15",
+      fontFamily: "system",
+      fontSize: "sm",
+      fontWeight: "bold",
+      textTransform: "uppercase",
+      letterSpacing: 1,
+      textAlign: "center",
+      paddingY: 10,
+      dismissible: true,
+      animation: "fade",
+      sortOrder: 0,
+    },
+    {
+      message: "Use code WELCOME10 for 10% off your first order",
+      promoCode: "WELCOME10",
+      linkUrl: "/shop",
+      linkText: "Shop Now",
+      icon: "🎉",
+      backgroundType: "gradient",
+      backgroundColor: "linear-gradient(90deg,#6d28d9,#db2777)",
+      textColor: "#ffffff",
+      accentColor: "#fde047",
+      fontFamily: "rounded",
+      fontSize: "sm",
+      fontWeight: "medium",
+      textTransform: "none",
+      letterSpacing: 0,
+      textAlign: "center",
+      paddingY: 10,
+      borderRadius: 0,
+      dismissible: true,
+      animation: "slide-in",
+      autoRotateSeconds: 6,
+      sortOrder: 1,
+    },
+  ]);
+
   console.log("\nSeed complete:");
   console.log(`  ${catDocs.length} categories`);
   console.log(`  ${products.length} products`);
   console.log(`  ${users.length} users`);
+  console.log(`  ${reviewCount} reviews (from ${reviewers.length} reviewers)`);
   console.log("\nLogin credentials:");
   console.log("  Admin  ->  admin@buyly.com / admin123");
   console.log("  User   ->  user@buyly.com  / user123");
