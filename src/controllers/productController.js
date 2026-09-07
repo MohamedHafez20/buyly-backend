@@ -180,11 +180,15 @@ export const getProducts = async (req, res) => {
     if (req.query.search) {
       filter.name = { $regex: req.query.search, $options: "i" };
     }
-    // Gender filtering happens in the database. "men"/"women"/"unisex" match that
-    // exact value; "all" (and any missing/unknown value) applies no constraint, so
-    // it returns men, women, unisex — and any legacy document without a gender.
+    // Gender filtering happens in the database. "unisex" products belong to both
+    // audiences, so the Men tab returns men + unisex and the Women tab returns
+    // women + unisex. Asking for "unisex" returns only unisex; "all" (and any
+    // missing/unknown value) applies no constraint, returning every product
+    // including legacy documents without a gender.
     const gender = String(req.query.gender ?? "").trim().toLowerCase();
-    if (GENDERS.includes(gender)) filter.gender = gender;
+    if (gender === "men") filter.gender = { $in: ["men", "unisex"] };
+    else if (gender === "women") filter.gender = { $in: ["women", "unisex"] };
+    else if (gender === "unisex") filter.gender = "unisex";
 
     const products = await Product.find(filter)
       .populate("category", "name slug")
