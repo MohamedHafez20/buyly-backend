@@ -1,9 +1,26 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import User from "../models/User.js";
 import Cart from "../models/Cart.js";
 import Coupon from "../models/Coupon.js";
 import InventoryAdjustment from "../models/InventoryAdjustment.js";
 import { priceCart, PricingError } from "../services/pricingService.js";
+import {
+  notifyOrderPlaced,
+  notifyOrderStatusChanged,
+  notifyPaymentResult,
+  notifyStockLevels,
+} from "../services/notificationService.js";
+
+// Re-check low/out-of-stock levels for a set of product ids and alert admins.
+// Safe: the service helpers swallow their own errors so this never disrupts the
+// order flow it runs after.
+const checkStockForProducts = async (productIds) => {
+  for (const pid of [...new Set(productIds.map(String))]) {
+    const product = await Product.findById(pid).select("name stock lowStockThreshold").lean();
+    await notifyStockLevels(product);
+  }
+};
 
 // Apply a signed stock delta for an order item. When the item carries a variant
 // SKU that still exists on the product, the variant's stock and the product-level
@@ -155,6 +172,13 @@ export const createOrder = async (req, res) => {
     // The purchase is complete — empty the user's persisted cart.
     await Cart.findOneAndUpdate({ user: req.user.id }, { items: [] });
 
+    // Fire notifications: confirm to the buyer, alert admins of the new order,
+    // and surface any product that dropped to a low/out-of-stock level. All
+    // helpers are self-guarding, so a notification failure never fails the order.
+    const buyer = await User.findById(req.user.id).select("name").lean();
+    await notifyOrderPlaced(order, buyer?.name || "A customer");
+    await checkStockForProducts(orderItems.map((i) => i.product));
+
     res.status(201).json(order);
   } catch (err) {
     if (err instanceof PricingError) {
@@ -258,7 +282,15 @@ export const updateOrderStatus = async (req, res) => {
 
     order.status = status;
     await order.save();
-    
+
+    // Notify the customer of the new status (and admins on a cancellation). If
+    // the order was reactivated from "cancelled", stock was just decremented —
+    // re-check levels so a reactivation can raise a low/out-of-stock alert.
+    await notifyOrderStatusChanged(order);
+    if (previousStatus === "cancelled" && status !== "cancelled") {
+      await checkStockForProducts(order.items.map((i) => i.product));
+    }
+
     res.json(order);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -297,6 +329,9 @@ export const payOrder = async (req, res) => {
       order.status = "cancelled";
       await order.save();
 
+      // Warn the customer and flag a payment issue for admins.
+      await notifyPaymentResult(order, { success: false });
+
       return res.status(402).json({
         message: "Payment declined by issuing bank (insufficient funds or incorrect details).",
         code: "PAYMENT_DECLINED",
@@ -306,6 +341,9 @@ export const payOrder = async (req, res) => {
     // Success! Update status to paid.
     order.status = "paid";
     await order.save();
+
+    // Confirm the payment to the customer.
+    await notifyPaymentResult(order, { success: true });
 
     res.json({
       message: "Payment processed successfully",

@@ -20,8 +20,19 @@ const EDITABLE = [
   "rating",
   "reviews",
   "status",
+  "gender",
   "category",
 ];
+
+// The only genders we ever persist. "all" is a frontend filter, never stored.
+const GENDERS = ["men", "women", "unisex"];
+
+// Coerce any incoming gender to a valid stored value, falling back to "unisex"
+// so an unexpected/empty value can never break a write.
+const normalizeGender = (value) => {
+  const g = String(value ?? "").trim().toLowerCase();
+  return GENDERS.includes(g) ? g : "unisex";
+};
 
 // Pick only allowed keys that were actually provided in the body.
 const pickBody = (body) => {
@@ -160,7 +171,7 @@ const applyVariants = (data, base) => {
   if (data.variants.length) data.stock = totalVariantStock(data.variants);
 };
 
-// GET /api/products?category=<id>&search=<q>&status=<active|draft>  (public)
+// GET /api/products?category=<id>&search=<q>&status=<active|draft>&gender=<men|women|all>  (public)
 export const getProducts = async (req, res) => {
   try {
     const filter = {};
@@ -169,6 +180,11 @@ export const getProducts = async (req, res) => {
     if (req.query.search) {
       filter.name = { $regex: req.query.search, $options: "i" };
     }
+    // Gender filtering happens in the database. "men"/"women"/"unisex" match that
+    // exact value; "all" (and any missing/unknown value) applies no constraint, so
+    // it returns men, women, unisex — and any legacy document without a gender.
+    const gender = String(req.query.gender ?? "").trim().toLowerCase();
+    if (GENDERS.includes(gender)) filter.gender = gender;
 
     const products = await Product.find(filter)
       .populate("category", "name slug")
@@ -202,6 +218,7 @@ export const createProduct = async (req, res) => {
         .json({ message: "Name, price, and category are required" });
     }
     if (data.colors !== undefined) data.colors = normalizeColorsInput(data.colors);
+    data.gender = normalizeGender(data.gender); // always land on a valid stored value
     data.slug = await uniqueSlug(Product, data.name);
     applyVariants(data, data.slug);
     if (data.bundleOffers !== undefined) {
@@ -222,6 +239,7 @@ export const updateProduct = async (req, res) => {
   try {
     const data = pickBody(req.body);
     if (data.colors !== undefined) data.colors = normalizeColorsInput(data.colors);
+    if (data.gender !== undefined) data.gender = normalizeGender(data.gender);
 
     // Regenerate the slug only when the name changes.
     if (data.name) {

@@ -1,5 +1,6 @@
 import InventoryAdjustment from "../models/InventoryAdjustment.js";
 import Product from "../models/Product.js";
+import { notifyStockLevels } from "../services/notificationService.js";
 
 // GET /api/admin/inventory/history  (admin)
 export const getInventoryHistory = async (req, res) => {
@@ -45,6 +46,9 @@ export const adjustInventory = async (req, res) => {
 
     product.stock += qty;
     await product.save();
+
+    // A manual reduction can push a product to low/out-of-stock — alert admins.
+    await notifyStockLevels(product);
 
     const adjustment = await InventoryAdjustment.create({
       product: productId,

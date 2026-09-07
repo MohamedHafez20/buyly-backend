@@ -13,6 +13,7 @@ import reviewRoutes from "./routes/review.routes.js";
 import inventoryRoutes from "./routes/inventory.routes.js";
 import wishlistRoutes from "./routes/wishlist.routes.js";
 import announcementRoutes from "./routes/announcement.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 import { uploadsDir } from "./middleware/upload.js";
 
 const app = express();
@@ -40,5 +41,6 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/admin/inventory", inventoryRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/announcements", announcementRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 export default app;

@@ -16,6 +16,15 @@ import {
   moderateReview,
   deleteReview,
 } from "../controllers/reviewController.js";
+import {
+  getAdminNotifications,
+  getAdminUnreadCount,
+  getAdminNotificationStats,
+  setAdminNotificationRead,
+  markAllAdminNotificationsRead,
+  deleteAdminNotification,
+  sendCustomNotification,
+} from "../controllers/notificationController.js";
 
 const router = express.Router();
 
@@ -36,5 +45,16 @@ router.delete("/coupons/:id", deleteCoupon);
 router.get("/reviews", getAllReviews);
 router.patch("/reviews/:id", moderateReview);
 router.delete("/reviews/:id", deleteReview);
+
+// --- Notifications (admin inbox + custom sends) ---
+// Static segments are registered before the :id routes so they never get
+// shadowed by the param matcher.
+router.get("/notifications", getAdminNotifications);
+router.get("/notifications/unread-count", getAdminUnreadCount);
+router.get("/notifications/stats", getAdminNotificationStats);
+router.post("/notifications/send", sendCustomNotification);
+router.patch("/notifications/read-all", markAllAdminNotificationsRead);
+router.patch("/notifications/:id/read", setAdminNotificationRead);
+router.delete("/notifications/:id", deleteAdminNotification);
 
 export default router;

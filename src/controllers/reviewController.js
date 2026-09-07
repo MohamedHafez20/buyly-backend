@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Review from "../models/Review.js";
 import Product from "../models/Product.js";
+import { notifyReviewSubmitted } from "../services/notificationService.js";
 
 const view = (r) => ({
   id: r._id,
@@ -79,6 +80,10 @@ export const createReview = async (req, res) => {
     });
 
     await recalcProductRating(id);
+
+    // Alert admins to moderate the new review (self-guarding helper).
+    await notifyReviewSubmitted(review, product, review.name);
+
     res.status(201).json(view(review));
   } catch (err) {
     if (err.code === 11000) {

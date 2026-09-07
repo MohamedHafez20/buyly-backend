@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { notifyNewUser } from "../services/notificationService.js";
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -42,6 +43,9 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashedPassword });
     const token = generateToken(user);
+
+    // Let admins know a new customer just signed up (self-guarding helper).
+    await notifyNewUser(user);
 
     res.status(201).json({
       token,

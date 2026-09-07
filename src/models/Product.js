@@ -56,6 +56,16 @@ const productSchema = new mongoose.Schema(
     rating: { type: Number, default: 0, min: 0, max: 5 },
     reviews: { type: Number, default: 0, min: 0 },
     status: { type: String, enum: ["active", "draft"], default: "active" },
+    // Merchandising gender. "unisex" covers products that belong to both men and
+    // women. Defaults to "unisex" so products created without an explicit choice
+    // (and legacy documents backfilled by the migration) stay visible under every
+    // storefront tab. Note: "all" is a frontend filter only — never a stored value.
+    gender: {
+      type: String,
+      enum: ["men", "women", "unisex"],
+      default: "unisex",
+      index: true,
+    },
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",

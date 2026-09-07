@@ -44,6 +44,27 @@ const products = [
   { name: "Core Athlete Cap", category: "Accessories", price: 22, rating: 4.5, reviews: 116, brand: "Core", stock: 40, description: "Keep the sun out of your eyes and focus on your form. This lightweight cap features sweat-wicking materials and perforated side panels for maximum airflow.", features: ["Sweat-wicking performance fabrics", "Perforated laser-cut vent panels", "Adjustable low-profile strap clasp", "Anti-glare under-bill design"], images: ["https://images.unsplash.com/photo-1588850561407-ed78c282e89b?q=80&w=800&auto=format&fit=crop", "https://images.unsplash.com/photo-1534215754734-18e55d13ce35?q=80&w=800&auto=format&fit=crop"], colors: ["Triple Black", "Classic White", "Sage Green"], sizes: ["One Size"] },
 ];
 
+// Merchandising gender per product (by name). Anything not listed falls back to
+// "unisex". Gives a realistic spread across the MEN / WOMEN / ALL storefront tabs.
+const genderByName = {
+  "AeroDry Performance Tee": "men",
+  "Evolve Oversized Tee": "unisex",
+  "Apex Seamless Tee": "men",
+  "Core Cotton Essential Tee": "unisex",
+  "Pursuit Pullover Hoodie": "women",
+  "Seamless Active Long Sleeve": "women",
+  "Element Quarter-Zip Pullover": "men",
+  "Fleece Training Joggers": "unisex",
+  "Apex Utility Cargo Jogger": "men",
+  "RestDay Heavyweight Sweatpants": "unisex",
+  "Repel Lightweight Windbreaker": "men",
+  "Sherpa Thermal Zip Jacket": "unisex",
+  "Bolt Carbon Running Shoes": "men",
+  "Evolve Studio Trainer": "women",
+  "Apex Gym Duffle Bag": "unisex",
+  "Core Athlete Cap": "unisex",
+};
+
 const users = [
   { name: "Admin", email: "admin@buyly.com", password: "admin123", role: "admin" },
   { name: "Demo Shopper", email: "user@buyly.com", password: "user123", role: "user" },
@@ -78,6 +99,7 @@ const run = async () => {
       slug: slugify(p.name),
       image: p.images?.[0] || "",
       status: "active",
+      gender: genderByName[p.name] || "unisex",
     }))
   );
 
