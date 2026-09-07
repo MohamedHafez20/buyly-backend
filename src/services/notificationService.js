@@ -1,5 +1,6 @@
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
+import { pushNotification } from "../realtime/socket.js";
 
 // ---------------------------------------------------------------------------
 // Centralized notification service.
@@ -22,11 +23,11 @@ import User from "../models/User.js";
 // customer sees in a notification matches the one on the order-success screen.
 const orderRef = (id = "") => `BLY-${String(id).slice(-6).toUpperCase()}`;
 
-// Real-time push seam. Today notifications reach clients via polling, so this is
-// intentionally a no-op. To add sockets later, emit here to a room keyed by
-// `notification.recipient` (and/or `recipientRole`) — nothing else must change.
-export const emit = (/* notification */) => {
-  // e.g. io.to(String(notification.recipient)).emit("notification", notification)
+// Real-time push seam. Delivers the notification to its recipient's Socket.IO
+// room. Clients still poll as a fallback, so this is purely additive — if
+// sockets are down, pushNotification() is a no-op and polling covers it.
+export const emit = (notification) => {
+  pushNotification(notification);
 };
 
 // Low-level create. Returns the saved doc (or null on failure — never throws).
